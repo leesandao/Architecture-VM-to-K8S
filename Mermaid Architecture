@@ -1,3 +1,4 @@
+```mermaid
 graph TD
     subgraph "公网 (Public Internet)"
         Internet_User[Internet User]
@@ -54,3 +55,4 @@ graph TD
     %% Style
     style Cilium_Agent fill:#9f9,stroke:#333,stroke-width:2px
     style Observability_Agent fill:#9ff,stroke:#333,stroke-width:2px
+```
