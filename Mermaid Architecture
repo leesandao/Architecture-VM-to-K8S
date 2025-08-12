@@ -1,0 +1,56 @@
+graph TD
+    subgraph "公网 (Public Internet)"
+        Internet_User[Internet User]
+    end
+
+    subgraph "云端接入层 (Cloud Access Layer)"
+        direction LR
+        Cloud_LB[<font size=4>公网负载均衡器</font><br>Ubuntu VM 1 (Public IP 1)<br>Ubuntu VM 2 (Public IP 2)<br><i>使用 Nginx/HAProxy</i>]
+    end
+
+    subgraph "本地数据中心 (On-Premise Datacenter)"
+        subgraph "Kubernetes 集群 (vSphere VMs)"
+            subgraph "K8s 控制平面 (Control Plane)"
+                CP_LB[<font size=4>内部API Server负载均衡器</font><br><i>Keepalived + HAProxy (VIP)</i>]
+                CP1(Master/CP 1<br>etcd) --- CP_LB
+                CP2(Master/CP 2<br>etcd) --- CP_LB
+                CP3(Master/CP 3<br>etcd) --- CP_LB
+            end
+            subgraph "K8s 工作节点 (Worker Nodes)"
+                direction TB
+                subgraph "Worker Node VM (Typical)"
+                    Kernel[<font size=4>Linux Kernel</font><br>eBPF Engine]
+                    Cilium_Agent[Cilium Agent (eBPF)] --> Kernel
+                    Observability_Agent[Observability Tool<br>e.g., Hubble, Tetragon] --> Kernel
+                    AppPod1(App Pod 1) -.-> Cilium_Agent
+                    AppPod2(App Pod 2) -.-> Cilium_Agent
+                end
+                W1(Worker 1)
+                W2(Worker 2)
+                W3(Worker 3)
+            end
+            subgraph "服务暴露层 (Service Exposure)"
+                Ingress[<font size=4>Nginx Ingress Controller</font><br><i>(Deployment with replicas)</i>]
+                MetalLB[<font size=4>MetalLB</font><br><i>(Assigns Internal LB IP)</i>]
+            end
+        end
+        subgraph "vSphere 基础设施 (Infrastructure)"
+            direction LR
+            ESXi1(ESXi Host 1) -- VMs --> vSphere_Storage
+            ESXi2(ESXi Host 2) -- VMs --> vSphere_Storage
+            ESXi3(ESXi Host 3) -- VMs --> vSphere_Storage
+            vSphere_Storage[(<font size=4>共享数据存储</font><br>Shared Datastore<br><i>vSAN, NFS, or iSCSI</i>)]
+        end
+    end
+
+    %% 流量路径 & 核心变化
+    Cloud_LB -- "TCP/HTTP/S" --> Ingress
+    Ingress -- "Service IP (from MetalLB)" --> W1 & W2 & W3
+    
+    %% eBPF核心
+    linkStyle 10,11,12,13 stroke:#ff0000,stroke-width:2px,color:red;
+    Cilium_Agent -- "<font color=red><b>Replaces kube-proxy</b><br>Handles Networking & Security Policies</font>" --> AppPod1
+    
+    %% Style
+    style Cilium_Agent fill:#9f9,stroke:#333,stroke-width:2px
+    style Observability_Agent fill:#9ff,stroke:#333,stroke-width:2px
